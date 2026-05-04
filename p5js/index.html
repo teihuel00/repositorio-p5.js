@@ -1,0 +1,133 @@
+/*
+  ==============================================================
+  Espiral Infinito de Escamas Negras con Brillo de Salmón para p5.js
+  ==============================================================
+  
+  Explicación técnica:
+  1. Espiral Infinito: Se utiliza una espiral logarítmica (fórmula: r = a * e^(b*theta)).
+     Para hacerlo "infinito", desplazamos continuamente la fase 'theta' con el tiempo,
+     lo que da una sensación de zoom o movimiento continuo hacia el centro.
+  2. Escamas Notorias: Se dibujan formas de elipse/gota superpuestas a lo largo
+     de la espiral, rotadas para seguir la tangente de la curva.
+  3. Brillo de Salmón: Se utiliza el modo de color HSB para controlar fácilmente:
+     - Tono (Hue): Alternando entre rosas bajos (0-20) y azules plateados (200-230).
+     - Saturación: Baja (10-40) para dar sensación metálica o nacarada.
+     - Brillo: Alto (90-100) para el glint (destello).
+     Se superpone una elipse base negra y una elipse de brillo ligeramente desplazada.
+*/
+
+let baseRadius = 1.5;    // Factor 'a' (tamaño base) de la espiral logarítmica
+let growthRate = 0.08;   // Factor 'b' (crecimiento) de la espiral
+let thetaStep = 0.07;    // Distancia angular entre escamas
+let totalPoints = 900;   // Máximo de escamas (ajustar según rendimiento)
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  // HSB es crucial para controlar el "brillo nacarado" de forma intuitiva
+  // Parámetros: Hue (360), Saturation (100), Brightness (100), Alpha (100)
+  colorMode(HSB, 360, 100, 100, 100);
+  noStroke();
+}
+
+function draw() {
+  // Fondo casi negro para que resalten las escamas negras y su brillo
+  background(0, 0, 2); 
+
+  // Centrar la composición
+  translate(width / 2, height / 2);
+
+  // 'timeOffset' crea el movimiento infinito. Aumentar para mayor velocidad.
+  let timeOffset = frameCount * 0.03;
+
+  // Dibujamos de afuera hacia adentro (i mayor a i menor) para que las escamas
+  // centrales se superpongan correctamente sobre las exteriores en el zoom in.
+  for (let i = totalPoints; i > 0; i--) {
+    // Calculamos Theta para esta escama, desplazado por el tiempo
+    let theta = i * thetaStep - timeOffset;
+    
+    // Si theta es negativo, la escama aún no ha "nacido" en el centro
+    if (theta < 0) continue; 
+
+    // Fórmula de Espiral Logarítmica: r = a * e^(b * theta)
+    let r = baseRadius * exp(growthRate * theta);
+
+    // Optimizaciones de visualización:
+    // 1. Culiar si está muy lejos de la pantalla (evita cálculos innecesarios)
+    if (r > width * 1.6) continue; 
+    // 2. Culiar si es demasiado pequeño en el centro
+    if (r < 0.1) continue; 
+
+    // Convertir coordenadas polares (r, theta) a cartesianas (x, y)
+    let x = r * cos(theta);
+    let y = r * sin(theta);
+
+    // --- LÓGICA DE ESCAMAS NOTORIAS (Notorious Scales) ---
+    // El tamaño base debe ser proporcional al radio 'r' para mantener la perspectiva
+    let scaleBaseSize = r * 0.16; // Factor para hacerlas "notorias"
+    // Limitamos los tamaños para que no sean ridículos
+    scaleBaseSize = constrain(scaleBaseSize, 2, 75);
+
+    push();
+    translate(x, y);
+    // Rotamos la escama para que siga la tangente de la espiral
+    // Para una espiral logarítmica, la tangente suele estar a un ángulo constante
+    // de la radial. theta + PI/2 o simplemente theta funcionan visualmente.
+    rotate(theta + PI / 2); 
+
+    // A) Base de la Escama (Negro Profundo Notorio)
+    // Usamos una transparencia baja (90) para que la superposición cree profundidad.
+    fill(0, 0, 8, 90); 
+    // Dibujamos la forma base (una elipse alargada tipo gota)
+    // El ancho es scaleBaseSize, el alto es 1.9 veces el ancho
+    ellipse(0, 0, scaleBaseSize, scaleBaseSize * 1.9);
+
+    // --- LÓGICA DE BRILLO DE SALMÓN (Salmon Iridescence) ---
+    // El brillo tiene tonos rosados, plateados y azulados.
+    
+    // 1. Tono (Hue) Cíclico: Mapeamos theta y tiempo a un hue.
+    // Hues de salmón aceptables: ~0-25 (Rosas) y ~200-240 (Azules Platas)
+    let hueVal = (theta * 8 + frameCount * 3) % 360;
+    
+    let salmonHue;
+    if (hueVal < 25) {
+      salmonHue = hueVal; // Rango Rosa
+    } else if (hueVal > 200 && hueVal < 240) {
+      salmonHue = hueVal; // Rango Azul Plata
+    } else {
+      // Si cae fuera de esos rangos, usamos una función para forzar tonos aceptables
+      // Mezcla rápida entre rosa (15) y azul plata (220)
+      salmonHue = map(sin(theta * 3 + frameCount * 0.01), -1, 1, 15, 220); 
+    }
+
+    // 2. Saturación Baja (Efecto Plata/Nacarado)
+    // Una saturación baja (10-40) desvanece el color hacia el blanco/plata.
+    // Usamos noise para una variación orgánica del brillo.
+    let sheenSat = map(noise(theta * 0.5, frameCount * 0.02), 0, 1, 10, 45); 
+
+    // 3. Brillo Alto (Destello)
+    let sheenBright = 100; // Máximo brillo para el glint
+
+    // B) El Glint (Brillo) - Forma superpuesta desplazada
+    // El brillo nacarado no está en el centro; está en los bordes elevados.
+    // Desplazamos la elipse del brillo ligeramente en el eje local X (el ancho).
+    let offsetAmount = scaleBaseSize * 0.15;
+    // Oscilación rápida del desplazamiento para simular reflejo en movimiento
+    let shineX = map(cos(theta * 2.5 + frameCount * 0.1), -1, 1, -offsetAmount, offsetAmount);
+    
+    // 4. Transparencia del Brillo (Sutil pero presente)
+    let alphaGlint = map(cos(theta + frameCount * 0.05), -1, 1, 45, 80);
+
+    fill(salmonHue, sheenSat, sheenBright, alphaGlint);
+    // Dibujamos el brillo más pequeño y desplazado
+    // La forma es ligeramente más estrecha que la base (0.85)
+    ellipse(shineX, 0, scaleBaseSize * 0.85, scaleBaseSize * 1.7);
+
+    pop();
+  }
+}
+
+// Asegurar que el canvas responda al cambio de tamaño de ventana
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+                             
